@@ -33,7 +33,7 @@ float M3_previous = 0;
 float M3_corrective_val = 0;
 int first_run = 0;
 
-void writeSensorData(const SensorData& data) {
+String writeSensorData(const SensorData& data) {
   // set capacity of JsonDocument
   const size_t capacity = JSON_OBJECT_SIZE(3);
   // StaticJsonDocument is a JsonDocument that allocates its memory pool in-place
@@ -45,9 +45,10 @@ void writeSensorData(const SensorData& data) {
   doc["p"] = data.pressure;
   doc["d"] = data.depth;
 
-  // Printing doc to Serial monitor
-  serializeJson(doc, Serial);
-  Serial.println();
+  // convert doc to string
+  char jsonString[46];
+  serializeJson(doc, jsonString);
+  return jsonString;
 }
 
 void setup() {
@@ -122,7 +123,7 @@ void setup() {
   while (!sensor.init()) {
     Serial.println("Init failed!");
     Serial.println("Are SDA/SCL connected correctly?");
-    Serial.println("Blue Robotics Bar30: White=SDA, Green=SCL");
+    Serial.println("Blue Robotics Bar2: White=SDA, Green=SCL");
     Serial.println("\n\n\n");
     delay(5000);
   }
@@ -186,7 +187,7 @@ void loop() {
               delayMicroseconds(500);
             }
           }
-          first_run ++;
+          first_run++;
 
 
 
@@ -221,6 +222,17 @@ void loop() {
             digitalWrite(stepPin, LOW);
             delayMicroseconds(300);
           }
+
+          // Send JSON
+          SensorData data = { -1101, -993.920, -0.201919 };
+          char jsonString[46];
+          jsonString = writeSensorData(data);
+          LoRaSerial.print("AT+SEND=115,");
+          LoRaSerial.print(sizeof(jsonString));
+          LoRaSerial.print(",");
+          LoRaSerial.println(jsonString);
+
+
           //Serial.println("LED is off");
           delay(30000);
           if (received[11] == '0') {  //in this case our single received byte would always be at the 11th position
