@@ -210,7 +210,8 @@ void loop() {
           current.time = millis() / 1000;
           current.pressure = sensor.pressure();
           current.depth = sensor.depth();
-          writeSensorData(current);
+          char jsonString[46];
+          jsonString = writeSensorData(current);
 
           // Begin going back up
           digitalWrite(dirPin, HIGH);  //Changes the rotations direction
@@ -224,9 +225,6 @@ void loop() {
           }
 
           // Send JSON
-          SensorData data = { -1101, -993.920, -0.201919 };
-          char jsonString[46];
-          jsonString = writeSensorData(data);
           LoRaSerial.print("AT+SEND=115,");
           LoRaSerial.print(sizeof(jsonString));
           LoRaSerial.print(",");
