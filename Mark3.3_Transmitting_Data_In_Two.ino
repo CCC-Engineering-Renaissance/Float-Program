@@ -8,13 +8,13 @@
 #define LED 2
 MS5837 sensor;
 
-// defines pins
 // LoRa
 String received;
 HardwareSerial LoRaSerial(2);  // accessing Uart
 #define RX_PIN 16
 #define TX_PIN 17
 #define LORA_BAUD 115200
+
 // Motor
 int motor_cycles = 0;
 #define stepPin 5
@@ -30,13 +30,6 @@ struct SensorData {
 SensorData current[10];
 String jsonString[2];
 
-float M3_error = 0;
-float M3_setpoint = 0;
-float M3_previous = 0;
-float M3_corrective_val = 0;
-int first_run = 0;
-
-
 StaticJsonDocument<JSON_OBJECT_SIZE(4)> doc1;
 JsonArray c1 = doc1["c"].to<JsonArray>();
 JsonArray t1 = doc1["t"].to<JsonArray>();
@@ -48,7 +41,6 @@ JsonArray c2 = doc2["c"].to<JsonArray>();
 JsonArray t2 = doc2["t"].to<JsonArray>();
 JsonArray p2 = doc2["p"].to<JsonArray>();
 JsonArray d2 = doc2["d"].to<JsonArray>();
-
 
 void setup() {
   // LORA
@@ -62,31 +54,14 @@ void setup() {
 
   LoRaSerial.print("AT\r\n");
   delay(1000);
-
-  LoRaSerial.print("AT+ADDRESS=116\r\n");  //needs to be unique
-  delay(1000);                             //wait for module to respond
-
-  LoRaSerial.print("AT+NETWORKID=10\r\n");  //needs to be same for receiver and transmitter
-  delay(1000);                              //wait for module to respond
-
-  LoRaSerial.print("AT+BAND=915000000\r\n");  //Bandwidth set to 868.5MHz
-  delay(1000);                                //wait for module to respond
-
+  LoRaSerial.print("AT+ADDRESS=116\r\n");         //needs to be unique
+  delay(1000);                                    //wait for module to respond
+  LoRaSerial.print("AT+NETWORKID=10\r\n");        //needs to be same for receiver and transmitter
+  delay(1000);                                    //wait for module to respond
+  LoRaSerial.print("AT+BAND=915000000\r\n");      //Bandwidth set to 868.5MHz
+  delay(1000);                                    //wait for module to respond
   LoRaSerial.print("AT+PARAMETER=10,7,1,7\r\n");  //For Less than 3Kms
   delay(1000);                                    //wait for module to respond
-
-  LoRaSerial.print("AT+PARAMETER?\r\n");  //For Less than 3Kms
-  //Serial.print("AT+PARAMETER=10,7,1,7\r\n");    //For More than 3Kms
-  delay(500);  //wait for module to respond
-
-  LoRaSerial.print("AT+BAND?\r\n");  //Bandwidth set to 868.5MHz
-  delay(500);                        //wait for module to respond
-
-  LoRaSerial.print("AT+NETWORKID?\r\n");  //needs to be same for receiver and transmitter
-  delay(500);                             //wait for module to respond
-
-  LoRaSerial.print("AT+ADDRESS?\r\n");  //needs to be unique
-  delay(500);                           //wait for module to respond
 
   pinMode(LED, OUTPUT);
   digitalWrite(LED, LOW);
@@ -100,24 +75,6 @@ void setup() {
   pinMode(dirPin, OUTPUT);
   pinMode(enPin, OUTPUT);
   pinMode(LED, OUTPUT);
-  //delay(300000);
-
-  /*
-  digitalWrite(dirPin, HIGH);
-  for (int x = 0; x < 14725; x++) {
-    digitalWrite(stepPin, HIGH);
-    delayMicroseconds(500);
-    digitalWrite(stepPin, LOW);
-    delayMicroseconds(500);
-  } 
-    digitalWrite(dirPin, LOW);
-  for (int x = 0; x < 7363; x++) {
-    digitalWrite(stepPin, HIGH);
-    delayMicroseconds(300);
-    digitalWrite(stepPin, LOW);
-    delayMicroseconds(300);
-  }
-  */
 
   while (!sensor.init()) {
     Serial.println("Init failed!");
@@ -133,7 +90,7 @@ void setup() {
 void loop() {
   digitalWrite(enPin, HIGH);
   int motor = 1;
-  // LORA
+
   // Forward Serial Monitor input to LoRa module sends the serial monitor input to the lora module
   if (Serial.available()) {
     String command = Serial.readStringUntil('\n');
@@ -159,44 +116,7 @@ void loop() {
             digitalWrite(enPin, HIGH);
             break;
           }
-          // Read from Sensor
-
-          /*
-          sensor.read();
-          SensorData begin;
-          begin.time = millis() / 1000;
-          begin.pressure = sensor.pressure();
-          begin.depth = sensor.depth();
-          writeSensorData(begin);
-
-
-          M3_previous = M3_error;
-          M3_error = M3_setpoint - begin.depth;
-          M3_corrective_val = pid(M3_error, M3_previous);
-          */
-
-          /*
-          if (first_run == 1) {
-            digitalWrite(dirPin, LOW);
-            for (int x = 0; x < 14725; x++) {
-              digitalWrite(stepPin, HIGH);
-              delayMicroseconds(500);
-              digitalWrite(stepPin, LOW);
-              delayMicroseconds(500);
-            }
-            digitalWrite(dirPin, HIGH);
-            for (int x = 0; x < 7363; x++) {
-              digitalWrite(stepPin, HIGH);
-              delayMicroseconds(500);
-              digitalWrite(stepPin, LOW);
-              delayMicroseconds(500);
-            }
-          }
-          first_run++;
-          */
-
-
-
+          
           // Begin Run
           digitalWrite(dirPin, LOW);
           // Currently intakes water to start, sinks
@@ -209,9 +129,7 @@ void loop() {
             digitalWrite(stepPin, LOW);
             delayMicroseconds(800);
           }
-          //Serial.println("LED is on");
-          //delay(10000);  // One second delay
-
+      
           // Read from Sensor
           for (int i = 0; i < 10; i++) {
             sensor.read();
@@ -221,7 +139,7 @@ void loop() {
             delay(1000);
           }
 
-
+          // Add to JSON documents
           for (int i = 0; i < 5; i++) {
             c1.add("EX05");
             t1.add(current[i].time);
@@ -239,6 +157,7 @@ void loop() {
           char cstring1[240];
           char cstring2[240];
 
+          // Convert JSON documents to strings
           serializeJson(doc1, cstring1);
           serializeJson(doc2, cstring2);
         
@@ -270,7 +189,6 @@ void loop() {
             LoRaSerial.println(jsonString[i]);
             delay(1000);
           }
-
 
           //Serial.println("LED is off");
           delay(5000);
