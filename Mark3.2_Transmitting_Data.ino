@@ -218,8 +218,8 @@ void loop() {
           for (int i = 0; i < 10; i++) {
             sensor.read();
             current[i].time = millis() / 1000;
-            current[i].pressure = sensor.pressure();
-            current[i].depth = sensor.depth();
+            current[i].pressure = sensor.pressure() + 16;
+            current[i].depth = (current[i].pressure - 1013) / (997 * 9.8);
           
             jsonString[i] = writeSensorData(current[i]);
             delay(1000);
