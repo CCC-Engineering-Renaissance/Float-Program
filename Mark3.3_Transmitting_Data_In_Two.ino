@@ -22,12 +22,12 @@ int motor_cycles = 0;
 #define enPin 19
 
 struct SensorData {
-  int time[10];
-  float pressure[10];
-  float depth[10];
+  int time;
+  float pressure;
+  float depth;
 };
 
-SensorData current;
+SensorData current[10];
 String jsonString[2];
 
 float M3_error = 0;
@@ -36,49 +36,19 @@ float M3_previous = 0;
 float M3_corrective_val = 0;
 int first_run = 0;
 
-String writeSensorData(const SensorData& data) {
-  // set capacity of JsonDocument
-  const size_t capacity = JSON_OBJECT_SIZE(4);
-  // StaticJsonDocument is a JsonDocument that allocates its memory pool in-place
-  // It doesn't rely on dynamic memory allocation (faster than DynamicJsonDocument)
-  StaticJsonDocument<capacity> doc;
 
-  //putting data into doc
-  doc["c"] = "EX05";
-  doc["t"] = data.time;
-  doc["p"] = data.pressure;
-  doc["d"] = data.depth;
+StaticJsonDocument<JSON_OBJECT_SIZE(4)> doc1;
+JsonArray c1 = doc1["c"].to<JsonArray>();
+JsonArray t1 = doc1["t"].to<JsonArray>();
+JsonArray p1 = doc1["p"].to<JsonArray>();
+JsonArray d1 = doc1["d"].to<JsonArray>();
 
-  // convert doc to string
-  char jsonString[50];
-  serializeJson(doc, jsonString);
-  return jsonString;
-}
+StaticJsonDocument<JSON_OBJECT_SIZE(4)> doc2;
+JsonArray c2 = doc2["c"].to<JsonArray>();
+JsonArray t2 = doc2["t"].to<JsonArray>();
+JsonArray p2 = doc2["p"].to<JsonArray>();
+JsonArray d2 = doc2["d"].to<JsonArray>();
 
-String writeSensorDataSplit(const SensorData& data, int first, int last) {
-   // set capacity of JsonDocument
-  const size_t capacity = JSON_OBJECT_SIZE(4);
-  // StaticJsonDocument is a JsonDocument that allocates its memory pool in-place
-  // It doesn't rely on dynamic memory allocation (faster than DynamicJsonDocument)
-  StaticJsonDocument<capacity> doc;
-
-  JsonArray c = doc["c"].to<JsonArray>();
-  JsonArray t = doc["t"].to<JsonArray>();
-  JsonArray p = doc["p"].to<JsonArray>();
-  JsonArray d = doc["d"].to<JsonArray>();
-
-  for (int i = first; i < last; i++) {
-    c.add("EX05");
-    t.add(data.time[i]);
-    p.add(data.pressure[i]);
-    d.add((int)(data.depth[i] / 0.001) * 0.001);
-  }
-
-  // Printing doc to Serial monitor
-  char jsonString[300];
-  serializeJson(doc, jsonString);
-  return jsonString;
-}
 
 void setup() {
   // LORA
@@ -191,17 +161,20 @@ void loop() {
           }
           // Read from Sensor
 
+          /*
           sensor.read();
           SensorData begin;
           begin.time = millis() / 1000;
           begin.pressure = sensor.pressure();
           begin.depth = sensor.depth();
           writeSensorData(begin);
-          
+
 
           M3_previous = M3_error;
           M3_error = M3_setpoint - begin.depth;
           M3_corrective_val = pid(M3_error, M3_previous);
+          */
+
           /*
           if (first_run == 1) {
             digitalWrite(dirPin, LOW);
@@ -242,15 +215,36 @@ void loop() {
           // Read from Sensor
           for (int i = 0; i < 10; i++) {
             sensor.read();
-            current.time[i] = millis() / 1000;
-            current.pressure[i] = sensor.pressure() + 16;
-            current.depth[i] = (current.pressure[i] - 1013) / (9.8 * 997);
+            current[i].time = millis() / 1000;
+            current[i].pressure = sensor.pressure() + 16;
+            current[i].depth = (current.pressure[i] - 1013) / (9.8 * 997);
             delay(1000);
           }
 
-          
-          jsonString[0] = writeSensorDataSplit(current, 0, 5);
-          jsonString[1] = writeSensorDataSplit(current, 5, 10)
+
+          for (int i = 0; i < 5; i++) {
+            c1.add("EX05");
+            t1.add(current[i].time);
+            p1.add(current[i].pressure);
+            d1.add((int)(current[i].depth / 0.001) * 0.001);
+          }
+
+          for (int i = 5; i < 10; i++) {
+            c2.add("EX05");
+            t2.add(current[i].time);
+            p2.add(current[i].pressure);
+            d2.add((int)(current[i].depth / 0.001) * 0.001);
+          }
+
+          char cstring1[240];
+          char cstring2[240];
+
+          serializeJson(doc1, cstring1);
+          serializeJson(doc2, cstring2);
+        
+          jsonString[0] = cstring1;
+          jsonString[1] = cstring2;
+
           Serial.println(jsonString[0]);
           Serial.println(jsonString[1]);
 
@@ -258,7 +252,7 @@ void loop() {
           digitalWrite(dirPin, HIGH);  //Changes the rotations direction
           // Makes 400 pulses for making two full cycle rotation
           for (int x = 0; x < 14725; x++) {
-            digitalWrite(stepPin, HIGH); 
+            digitalWrite(stepPin, HIGH);
             // Motor
             delayMicroseconds(800);
             digitalWrite(stepPin, LOW);
@@ -270,11 +264,11 @@ void loop() {
           // Send JSON
           Serial.println("sending");
           for (int i = 0; i < 2; i++) {
-          LoRaSerial.print("AT+SEND=115,");
-          LoRaSerial.print(256);
-          LoRaSerial.print(",");
-          LoRaSerial.println(jsonString[i]);
-          delay(1000);
+            LoRaSerial.print("AT+SEND=115,");
+            LoRaSerial.print(256);
+            LoRaSerial.print(",");
+            LoRaSerial.println(jsonString[i]);
+            delay(1000);
           }
 
 
@@ -290,3 +284,4 @@ void loop() {
     }
   }
 }
+
