@@ -34,13 +34,15 @@ struct SensorData {
   float depth;
 };
 
-SensorData current[10];
-String jsonString[10];
+SensorData current[100];
+String jsonString[100];
 
 float M3_error = 0;
 float M3_setpoint = 0;
 float M3_previous = 0;
 float M3_corrective_val = 0;
+int curr_json = 0;
+
 int first_run = 0;
 
 String writeSensorData(const SensorData& data) {
@@ -58,6 +60,22 @@ String writeSensorData(const SensorData& data) {
 
   // convert doc to string
   char jsonString[50];
+  serializeJson(doc, jsonString);
+  return jsonString;
+}
+
+String writeData(String name, const float data) {
+  // set capacity of JsonDocument
+  const size_t capacity = JSON_OBJECT_SIZE(1);
+  // StaticJsonDocument is a JsonDocument that allocates its memory pool in-place
+  // It doesn't rely on dynamic memory allocation (faster than DynamicJsonDocument)
+  StaticJsonDocument<capacity> doc;
+
+  //putting data into doc
+  doc[name] = data;
+
+  // convert doc to string
+  char jsonString[20];
   serializeJson(doc, jsonString);
   return jsonString;
 }
@@ -183,22 +201,32 @@ void loop() {
             digitalWrite(enPin, HIGH);
             break;
           }
-          // Read from Sensor
 
-          sensor.read();
+          
+          // Read from Sensor
+          // sensor.read();
+          
+          /*
           SensorData begin;
           float Depth = sensor.depth(); 
           Serial.print(Depth);
+          */
+          
 
+          /*
           begin.time = millis() / 1000;
           begin.pressure = sensor.pressure();
           begin.depth = sensor.depth();
           writeSensorData(begin);
+          */
 
-
+          sensor.read();
           M3_previous = M3_error;
-          M3_error = M3_setpoint - begin.depth;
-          M3_corrective_val = pid(M3_error, M3_previous);
+          jsonString[curr_json] = writeData("Curr_depth", sensor.depth());
+          curr_json++;
+          M3_corrective_val = pid(sensor.depth(), M3_previous);
+          jsonString[curr_json] = writeData("PID_Val", M3_corrective_val);
+          curr_json++;
 
           if (first_run == 1) {
             LoRaSerial.print("AT+SEND=115,15,{CONNECTED}\r\n");
@@ -218,21 +246,32 @@ void loop() {
           // Currently intakes water to start, sinks
           step(7362.5, 1000);  // 200 pulses at 800 µs total period
 
+          sensor.read();
+
+          M3_previous = M3_error;
+          jsonString[curr_json] = writeData("Curr_depth", sensor.depth());
+          curr_json++;
+          M3_corrective_val = pid(sensor.depth(), M3_previous);
+          jsonString[curr_json] = writeData("PID_Val", M3_corrective_val);
+          curr_json++;
+
           delay(5000);
           //Serial.println("LED is on");
           //delay(10000);  // One second delay
 
           // Read from Sensor
-          for (int i = 0; i < 10; i++) {
+
+          for (int i = 1; i < 11; i++) {
             sensor.read();
             current[i].time = millis() / 1000;
             current[i].pressure = sensor.pressure();
             current[i].depth = sensor.depth();
 
-            jsonString[i] = writeSensorData(current[i]);
+            jsonString[i + curr_json] = writeSensorData(current[i]);
             delay(1000);
-            Serial.println(jsonString[i]);
+            Serial.println(jsonString[i + curr_json]);
           }
+          curr_json += 10;
 
           delay(5000);
 
@@ -241,17 +280,26 @@ void loop() {
                                        // Makes 400 pulses for making two full cycle rotation
           step(7362.5, 1000);          // 200 pulses at 800 µs total period
 
+          sensor.read();
+          M3_previous = M3_error;
+          jsonString[curr_json] = writeData("Curr_depth", sensor.depth());
+          curr_json++;
+          M3_corrective_val = pid(sensor.depth(), M3_previous);
+          jsonString[curr_json] = writeData("PID_Val", M3_corrective_val);
+          curr_json++;
+
           delay(15000);
 
           // Send JSON
           Serial.println("sending");
-          for (int i = 0; i < 10; i++) {
+          for (int i = 0; i < curr_json; i++) {
             LoRaSerial.print("AT+SEND=115,");
             LoRaSerial.print(50);
             LoRaSerial.print(",");
             LoRaSerial.println(jsonString[i]);
             delay(1000);
           }
+
 
 
           //Serial.println("LED is off");
