@@ -1,10 +1,21 @@
+#include <ArduinoJson.h>
+#include <ArduinoJson.hpp>
 #include <HardwareSerial.h>
+#define LED 2
 
+String received, jsonString;
 HardwareSerial LoRaSerial(2);  // accessing Uart
 
 #define RX_PIN 16
 #define TX_PIN 17
+#define RST_PIN 5
 #define LORA_BAUD 115200
+
+struct SensorData {
+  float pressure;
+  float depth;
+  int time;
+};
 
 void setup() {
   Serial.begin(115200);                                     // beginning baud rate
@@ -29,7 +40,15 @@ void setup() {
   delay(1000);                              //wait for module to respond
 
   LoRaSerial.print("AT+PARAMETER?\r\n");  //prints the current parameters
-  delay(1000);                            //wait for module to respond
+  delay(1000);
+  /*
+  digitalWrite(RST_PIN, HIGH);
+  delay(1000);
+  digitalWrite(RST_PIN, LOW);
+  delay(1000);
+  digitalWrite(RST_PIN, HIGH);
+  */
+  //wait for module to respond
 }
 
 void loop() {
@@ -41,11 +60,19 @@ void loop() {
 
   // reads in LoRa module response to Serial Monitor
   while (LoRaSerial.available()) {
-    Serial.print((char)LoRaSerial.read());
-  }
+    received = LoRaSerial.readString();
+    Serial.print(received);
 
+    int end = received.indexOf("}");
+    jsonString = received.substring(12, end + 1);
+    Serial.print("Decoded string: ");
+    Serial.println(jsonString);  // Should print: {"t":123,"p":1.23,"d":4.56}
+  }
+  /*
   LoRaSerial.println("AT+SEND=116,1,1");
   delay(1000);
+
   LoRaSerial.println("AT+SEND=116,1,0");
   delay(1000);
+  */
 }
