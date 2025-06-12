@@ -187,6 +187,9 @@ void loop() {
 
           sensor.read();
           SensorData begin;
+          float Depth = sensor.depth(); 
+          Serial.print(Depth);
+
           begin.time = millis() / 1000;
           begin.pressure = sensor.pressure();
           begin.depth = sensor.depth();
@@ -196,17 +199,17 @@ void loop() {
           M3_previous = M3_error;
           M3_error = M3_setpoint - begin.depth;
           M3_corrective_val = pid(M3_error, M3_previous);
-          
+
           if (first_run == 1) {
             LoRaSerial.print("AT+SEND=115,15,{CONNECTED}\r\n");
             // Push everything out
             digitalWrite(dirPin, HIGH);
-            step(14725, 1000); 
-            // digitalWrite(dirPin, LOW); // Neutrally Bouyant 
-            // step(3681.25, 1500); 
+            step(14725, 1000);
+            // digitalWrite(dirPin, LOW); // Neutrally Bouyant
+            // step(3681.25, 1500);
           }
           first_run++;
-          
+
 
 
 
@@ -236,7 +239,7 @@ void loop() {
           // Begin going back up
           digitalWrite(dirPin, HIGH);  //Changes the rotations direction
                                        // Makes 400 pulses for making two full cycle rotation
-          step(7362.5, 1000);           // 200 pulses at 800 µs total period
+          step(7362.5, 1000);          // 200 pulses at 800 µs total period
 
           delay(15000);
 
