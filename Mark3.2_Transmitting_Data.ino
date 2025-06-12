@@ -4,6 +4,7 @@
 #include <Wire.h>
 #include "MS5837.h"
 #include <PID.h>
+#include <TMCStepper.h>
 
 #define LED 2
 MS5837 sensor;
@@ -20,6 +21,12 @@ int motor_cycles = 0;
 #define stepPin 5
 #define dirPin 18
 #define enPin 19
+#define DRIVER_ADDRESS 0  // MS1/MS2 = GND/GND → address 0
+#define R_SENSE 0.11f     // Rsense value in ohms on your board
+
+// Use hardware Serial1 (TX1/RX1) on boards that support it
+TMC2209Stepper driver(&Serial1, R_SENSE, DRIVER_ADDRESS);
+
 
 struct SensorData {
   int time;
@@ -101,11 +108,23 @@ void setup() {
 
   // Sets the two pins as Outputs
   pinMode(stepPin, OUTPUT);
+  pinMode(enPin, OUTPUT);
   digitalWrite(enPin, HIGH);
   pinMode(dirPin, OUTPUT);
-  pinMode(enPin, OUTPUT);
   pinMode(LED, OUTPUT);
   //delay(300000);
+
+  driver.begin();
+  driver.pdn_disable(true);  // disable PDN_UART pin function
+
+  // Configure full-step mode:
+  driver.microsteps(1);  // 1 step per full step
+  driver.intpol(false);  // disable MicroPlyer interpolation
+
+  driver.en_spreadCycle(true);  // enable SpreadCycle for better torque dynamics
+  driver.rms_current(675);      // set run current to 800 mA
+  driver.TCOOLTHRS(0);          // disable CoolStep
+  driver.SGTHRS(0);             // disable StallGuard
 
   /*
   digitalWrite(dirPin, HIGH);
@@ -172,45 +191,31 @@ void loop() {
           begin.pressure = sensor.pressure();
           begin.depth = sensor.depth();
           writeSensorData(begin);
-          
+
 
           M3_previous = M3_error;
           M3_error = M3_setpoint - begin.depth;
           M3_corrective_val = pid(M3_error, M3_previous);
-          /*
+          
           if (first_run == 1) {
-            digitalWrite(dirPin, LOW);
-            for (int x = 0; x < 14725; x++) {
-              digitalWrite(stepPin, HIGH);
-              delayMicroseconds(500);
-              digitalWrite(stepPin, LOW);
-              delayMicroseconds(500);
-            }
+            LoRaSerial.print("AT+SEND=115,15,{CONNECTED}\r\n");
+            // Push everything out
             digitalWrite(dirPin, HIGH);
-            for (int x = 0; x < 7363; x++) {
-              digitalWrite(stepPin, HIGH);
-              delayMicroseconds(500);
-              digitalWrite(stepPin, LOW);
-              delayMicroseconds(500);
-            }
+            step(14725, 1000); 
+            // digitalWrite(dirPin, LOW); // Neutrally Bouyant 
+            // step(3681.25, 1500); 
           }
           first_run++;
-          */
+          
 
 
 
           // Begin Run
           digitalWrite(dirPin, LOW);
           // Currently intakes water to start, sinks
-          for (int x = 0; x < 14725; x++) {
-            digitalWrite(stepPin, HIGH);
-            // LED
-            digitalWrite(LED, HIGH);
-            // Motor
-            delayMicroseconds(800);  // by changing this time delay between the steps we can change the rotation speed
-            digitalWrite(stepPin, LOW);
-            delayMicroseconds(800);
-          }
+          step(7362.5, 1000);  // 200 pulses at 800 µs total period
+
+          delay(5000);
           //Serial.println("LED is on");
           //delay(10000);  // One second delay
 
@@ -218,35 +223,31 @@ void loop() {
           for (int i = 0; i < 10; i++) {
             sensor.read();
             current[i].time = millis() / 1000;
-            current[i].pressure = sensor.pressure() + 16;
-            current[i].depth = (current[i].pressure - 1013) / (997 * 9.8);
-          
+            current[i].pressure = sensor.pressure();
+            current[i].depth = sensor.depth();
+
             jsonString[i] = writeSensorData(current[i]);
             delay(1000);
             Serial.println(jsonString[i]);
           }
 
+          delay(5000);
+
           // Begin going back up
           digitalWrite(dirPin, HIGH);  //Changes the rotations direction
-          // Makes 400 pulses for making two full cycle rotation
-          for (int x = 0; x < 14725; x++) {
-            digitalWrite(stepPin, HIGH);
-            // Motor
-            delayMicroseconds(800);
-            digitalWrite(stepPin, LOW);
-            delayMicroseconds(800);
-          }
+                                       // Makes 400 pulses for making two full cycle rotation
+          step(7362.5, 1000);           // 200 pulses at 800 µs total period
 
           delay(15000);
 
           // Send JSON
           Serial.println("sending");
           for (int i = 0; i < 10; i++) {
-          LoRaSerial.print("AT+SEND=115,");
-          LoRaSerial.print(100);
-          LoRaSerial.print(",");
-          LoRaSerial.println(jsonString[i]);
-          delay(1000);
+            LoRaSerial.print("AT+SEND=115,");
+            LoRaSerial.print(50);
+            LoRaSerial.print(",");
+            LoRaSerial.println(jsonString[i]);
+            delay(1000);
           }
 
 
@@ -260,5 +261,14 @@ void loop() {
         }
       }
     }
+  }
+}
+// Helper: toggle STEP pin N times at the given pulse_period (µs)
+void step(uint16_t steps, uint16_t pulse_period) {
+  for (uint16_t i = 0; i < steps; ++i) {
+    digitalWrite(stepPin, HIGH);
+    delayMicroseconds(pulse_period / 2);
+    digitalWrite(stepPin, LOW);
+    delayMicroseconds(pulse_period / 2);
   }
 }
