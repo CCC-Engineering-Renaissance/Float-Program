@@ -34,8 +34,8 @@ struct SensorData {
   float depth;
 };
 
-SensorData current[100];
-String jsonString[100];
+SensorData current[200];
+String jsonString[200];
 
 float M3_error = 0;
 float M3_setpoint = 0;
@@ -44,6 +44,7 @@ float M3_corrective_val = 0;
 int curr_json = 0;
 
 int first_run = 0;
+int motor = 0;
 
 String writeSensorData(const SensorData& data) {
   // set capacity of JsonDocument
@@ -78,6 +79,14 @@ String writeData(String name, const float data) {
   char jsonString[20];
   serializeJson(doc, jsonString);
   return jsonString;
+}
+
+void check_json() {
+  if (curr_json >= 198) {
+    digitalWrite(dirPin, HIGH);
+    step(14725 * 4.36, 1000);
+    motor = 0;
+  }
 }
 
 void setup() {
@@ -174,7 +183,6 @@ void setup() {
 
 void loop() {
   digitalWrite(enPin, HIGH);
-  int motor = 1;
   // LORA
   // Forward Serial Monitor input to LoRa module sends the serial monitor input to the lora module
   if (Serial.available()) {
@@ -189,6 +197,7 @@ void loop() {
     if (received.startsWith("+RCV")) {
       if (received[11] == '1') {  //in this case our single received byte would always be at the 11th position
         Serial.println("begin");
+        motor = 1;
         while (motor == 1) {
           received = LoRaSerial.readString();
           Serial.print(received);
@@ -202,16 +211,16 @@ void loop() {
             break;
           }
 
-          
+
           // Read from Sensor
           // sensor.read();
-          
+
           /*
           SensorData begin;
           float Depth = sensor.depth(); 
           Serial.print(Depth);
           */
-          
+
 
           /*
           begin.time = millis() / 1000;
@@ -224,15 +233,17 @@ void loop() {
           M3_previous = M3_error;
           jsonString[curr_json] = writeData("Curr_depth", sensor.depth());
           curr_json++;
+          check_json();
           M3_corrective_val = pid(sensor.depth(), M3_previous);
           jsonString[curr_json] = writeData("PID_Val", M3_corrective_val);
           curr_json++;
+          check_json();
 
           if (first_run == 1) {
             LoRaSerial.print("AT+SEND=115,15,{CONNECTED}\r\n");
             // Push everything out
             digitalWrite(dirPin, HIGH);
-            step(14725, 1000);
+            step(14725 * 4.36, 1000);
             // digitalWrite(dirPin, LOW); // Neutrally Bouyant
             // step(3681.25, 1500);
           }
@@ -244,16 +255,18 @@ void loop() {
           // Begin Run
           digitalWrite(dirPin, LOW);
           // Currently intakes water to start, sinks
-          step(7362.5, 1000);  // 200 pulses at 800 µs total period
+          step(7362.5 * 4.36, 1000);  // 200 pulses at 800 µs total period
 
           sensor.read();
 
           M3_previous = M3_error;
           jsonString[curr_json] = writeData("Curr_depth", sensor.depth());
           curr_json++;
+          check_json();
           M3_corrective_val = pid(sensor.depth(), M3_previous);
           jsonString[curr_json] = writeData("PID_Val", M3_corrective_val);
           curr_json++;
+          check_json();
 
           delay(5000);
           //Serial.println("LED is on");
@@ -272,38 +285,47 @@ void loop() {
             Serial.println(jsonString[i + curr_json]);
           }
           curr_json += 10;
+          check_json();
+
 
           delay(5000);
 
           // Begin going back up
           digitalWrite(dirPin, HIGH);  //Changes the rotations direction
                                        // Makes 400 pulses for making two full cycle rotation
-          step(7362.5, 1000);          // 200 pulses at 800 µs total period
+          step(7362.5 * 4.36, 1000);   // 200 pulses at 800 µs total period
 
           sensor.read();
           M3_previous = M3_error;
           jsonString[curr_json] = writeData("Curr_depth", sensor.depth());
           curr_json++;
+          check_json();
           M3_corrective_val = pid(sensor.depth(), M3_previous);
           jsonString[curr_json] = writeData("PID_Val", M3_corrective_val);
           curr_json++;
+          check_json();
 
-          delay(15000);
+          delay(5000);
 
           // Send JSON
-          Serial.println("sending");
-          for (int i = 0; i < curr_json; i++) {
-            LoRaSerial.print("AT+SEND=115,");
-            LoRaSerial.print(50);
-            LoRaSerial.print(",");
-            LoRaSerial.println(jsonString[i]);
-            delay(1000);
+          if (received[11] == 2) {
+            Serial.println("sending");
+            for (int i = 0; i < curr_json; i++) {
+              LoRaSerial.print("AT+SEND=115,");
+              LoRaSerial.print(50);
+              LoRaSerial.print(",");
+              LoRaSerial.println(jsonString[i]);
+              delay(1000);
+            }
+            digitalWrite(LED, LOW);
+            digitalWrite(enPin, HIGH);
+            motor = 0;
           }
 
 
 
           //Serial.println("LED is off");
-          delay(5000);
+          curr_json = 0;
           if (received[11] == '0') {  //in this case our single received byte would always be at the 11th position
             digitalWrite(LED, LOW);
             digitalWrite(enPin, HIGH);
