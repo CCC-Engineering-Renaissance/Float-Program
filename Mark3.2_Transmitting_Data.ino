@@ -18,8 +18,8 @@ HardwareSerial LoRaSerial(2);  // accessing Uart
 #define LORA_BAUD 115200
 // Motor
 int motor_cycles = 0;
-#define stepPin 5
-#define dirPin 18
+#define stepPin 18
+#define dirPin 5
 #define enPin 19
 #define DRIVER_ADDRESS 0  // MS1/MS2 = GND/GND → address 0
 #define R_SENSE 0.11f     // Rsense value in ohms on your board
@@ -243,7 +243,7 @@ void loop() {
             LoRaSerial.print("AT+SEND=115,15,{CONNECTED}\r\n");
             // Push everything out
             digitalWrite(dirPin, HIGH);
-            step(14725 * 4.36, 1000);
+            step(14725, 1000);
             // digitalWrite(dirPin, LOW); // Neutrally Bouyant
             // step(3681.25, 1500);
           }
@@ -255,7 +255,7 @@ void loop() {
           // Begin Run
           digitalWrite(dirPin, LOW);
           // Currently intakes water to start, sinks
-          step(7362.5 * 4.36, 1000);  // 200 pulses at 800 µs total period
+          step(7362.5, 1000);  // 200 pulses at 800 µs total period
 
           sensor.read();
 
@@ -288,12 +288,12 @@ void loop() {
           check_json();
 
 
-          delay(5000);
+          delay(1000);
 
           // Begin going back up
           digitalWrite(dirPin, HIGH);  //Changes the rotations direction
                                        // Makes 400 pulses for making two full cycle rotation
-          step(7362.5 * 4.36, 1000);   // 200 pulses at 800 µs total period
+          step(7362.5, 1000);   // 200 pulses at 800 µs total period
 
           sensor.read();
           M3_previous = M3_error;
@@ -305,7 +305,7 @@ void loop() {
           curr_json++;
           check_json();
 
-          delay(5000);
+          delay(15000);
 
           // Send JSON
           if (received[11] == 2) {
